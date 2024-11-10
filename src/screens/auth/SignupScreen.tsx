@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,29 +9,91 @@ import {
   Platform,
   ScrollView,
   SafeAreaView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Link } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+
+interface ValidationErrors {
+  username?: string;
+  email?: string;
+  password?: string;
+}
 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<ValidationErrors>({});
+  const [showPassword, setShowPassword] = useState(false);
   
-  const handleSignUp = async () => {
-    // We'll implement this later with Firebase
-    console.log('Sign up:', { email, password, username });
-  };
+  const navigation = useNavigation();
+
+  const validateForm = useCallback((): boolean => {
+    const newErrors: ValidationErrors = {};
+
+    if (!username.trim()) {
+      newErrors.username = 'Username is required';
+    } else if (username.length < 3) {
+      newErrors.username = 'Username must be at least 3 characters';
+    }
+
+    if (!email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      newErrors.email = 'Please enter a valid email';
+    }
+
+    if (!password) {
+      newErrors.password = 'Password is required';
+    } else if (password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, [username, email, password]);
+
+  const handleSignUp = useCallback(async () => {
+    if (!validateForm()) return;
+  
+    setLoading(true);
+    
+    // Simulate API call
+    setTimeout(() => {
+      setLoading(false);
+      navigation.navigate('SkinQuestions'); // Navigate to questionnaire instead of Home
+    }, 1500);
+  }, [validateForm, navigation]);
+
+  const handleBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
+      <LinearGradient
+        colors={['#1a1733', '#231f45', '#2a2552', '#231f45', '#1a1733']}
+        style={styles.gradient}
+      />
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={handleBack}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <Ionicons name="chevron-back" size={28} color="#f49cbb" />
+          </TouchableOpacity>
+
           <View style={styles.header}>
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Join VanityAI to discover your perfect beauty matches</Text>
@@ -41,48 +103,89 @@ export default function SignupScreen() {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>USERNAME</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, errors.username && styles.inputError]}
                 placeholder="Enter your username"
                 placeholderTextColor="#6B7280"
                 value={username}
-                onChangeText={setUsername}
+                onChangeText={(text) => {
+                  setUsername(text);
+                  if (errors.username) {
+                    setErrors(prev => ({ ...prev, username: undefined }));
+                  }
+                }}
                 autoCapitalize="none"
+                editable={!loading}
               />
+              {errors.username && (
+                <Text style={styles.errorText}>{errors.username}</Text>
+              )}
             </View>
 
             <View style={styles.inputContainer}>
               <Text style={styles.label}>EMAIL</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, errors.email && styles.inputError]}
                 placeholder="Enter your email"
                 placeholderTextColor="#6B7280"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (errors.email) {
+                    setErrors(prev => ({ ...prev, email: undefined }));
+                  }
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                editable={!loading}
               />
+              {errors.email && (
+                <Text style={styles.errorText}>{errors.email}</Text>
+              )}
             </View>
 
             <View style={styles.inputContainer}>
               <Text style={styles.label}>PASSWORD</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Create a password"
-                placeholderTextColor="#6B7280"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput, errors.password && styles.inputError]}
+                  placeholder="Create a password"
+                  placeholderTextColor="#6B7280"
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (errors.password) {
+                      setErrors(prev => ({ ...prev, password: undefined }));
+                    }
+                  }}
+                  secureTextEntry={!showPassword}
+                  editable={!loading}
+                />
+                <TouchableOpacity 
+                  style={styles.passwordToggle}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Ionicons 
+                    name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                    size={20} 
+                    color="#6e6e7e" 
+                  />
+                </TouchableOpacity>
+              </View>
+              {errors.password && (
+                <Text style={styles.errorText}>{errors.password}</Text>
+              )}
             </View>
 
             <TouchableOpacity 
-              style={styles.button}
+              style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleSignUp}
               disabled={loading}
             >
-              <Text style={styles.buttonText}>
-                {loading ? 'Creating Account...' : 'Sign Up'}
-              </Text>
+              {loading ? (
+                <ActivityIndicator color="#fdf0d5" />
+              ) : (
+                <Text style={styles.buttonText}>Sign Up</Text>
+              )}
             </TouchableOpacity>
 
             <View style={styles.divider}>
@@ -91,13 +194,15 @@ export default function SignupScreen() {
               <View style={styles.dividerLine} />
             </View>
 
-            <Link href="/auth/login" asChild>
-              <TouchableOpacity style={styles.linkButton}>
-                <Text style={styles.linkText}>
-                  Already have an account? <Text style={styles.linkTextBold}>Log in</Text>
-                </Text>
-              </TouchableOpacity>
-            </Link>
+            <TouchableOpacity 
+              style={styles.linkButton}
+              onPress={() => navigation.navigate('Login')}
+              disabled={loading}
+            >
+              <Text style={styles.linkText}>
+                Already have an account? <Text style={styles.linkTextBold}>Log in</Text>
+              </Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -110,9 +215,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0d0c1d', // Rich black
   },
+  backButton: {
+    marginLeft: 10,
+    marginTop: Platform.OS === 'ios' ? 0 : 20,
+    marginBottom: 20,
+    zIndex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
     padding: 20,
   },
   header: {

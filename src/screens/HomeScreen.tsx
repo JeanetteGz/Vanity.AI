@@ -1,5 +1,4 @@
-// src/screens/HomeScreen.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -8,14 +7,29 @@ import {
   SafeAreaView,
   Animated,
   Dimensions,
+  Platform,
+  StatusBar,
+  Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
 
 const { width, height } = Dimensions.get('window');
 
-const EMOJIS = ['💄', '💋', '💅', '👄', '🧴', '🎭', '💆‍♀️', '💇‍♀️', '👗', '👠', '✨'];
-const NUMBER_OF_EMOJIS = 10; // Reduced number of emojis for cleaner look
+const EMOJIS = [
+  '💄', '💋', '💅', '👄', '🧴', 
+  '👗', '👠', '✨',
+  '👩🏻', '👩🏽', '👩🏿',
+];
+const NUMBER_OF_EMOJIS = 15;
+const FIRST_TIME_KEY = 'HAS_LAUNCHED_BEFORE';
+
+const getRandomPosition = () => ({
+  x: Math.random() * width,
+  y: Math.random() * (height * 0.8),
+});
 
 interface FloatingEmoji {
   emoji: string;
@@ -29,78 +43,146 @@ export default function HomeScreen() {
   const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
   const [showCursor, setShowCursor] = useState(true);
   const [subtitleText, setSubtitleText] = useState('');
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const buttonsFadeAnim = useRef(new Animated.Value(0)).current;
+  const titleMoveAnim = useRef(new Animated.Value(-50)).current;
+  const navigation = useNavigation();
+  const cursorIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
   const fullSubtitle = 'Your Personal Beauty Assistant';
-  const navigation = useNavigation(); // Use navigation only once inside the component
 
-  useEffect(() => {
-    const emojis: FloatingEmoji[] = [];
-    for (let i = 0; i < NUMBER_OF_EMOJIS; i++) {
-      emojis.push({
-        emoji: EMOJIS[Math.floor(Math.random() * EMOJIS.length)],
-        position: new Animated.ValueXY({
-          x: Math.random() * width,
-          y: Math.random() * height,
+  const startFloatingAnimation = (emoji: FloatingEmoji) => {
+    const animate = () => {
+      const nextPosition = getRandomPosition();
+      const duration = 8000 + Math.random() * 4000;
+
+      Animated.parallel([
+        Animated.timing(emoji.position, {
+          toValue: nextPosition,
+          duration,
+          useNativeDriver: false,
+          easing: Easing.bezier(0.4, 0, 0.2, 1),
         }),
-        scale: new Animated.Value(Math.random() * 0.3 + 1.2),
-        rotation: new Animated.Value(0),
-        opacity: new Animated.Value(0.4),
-      });
-    }
-    setFloatingEmojis(emojis);
+        Animated.timing(emoji.scale, {
+          toValue: Math.random() * 0.3 + 1.1,
+          duration: duration / 2,
+          useNativeDriver: false,
+          easing: Easing.inOut(Easing.sin),
+        }),
+        Animated.timing(emoji.opacity, {
+          toValue: Math.random() * 0.3 + 0.2,
+          duration: duration / 2,
+          useNativeDriver: false,
+        }),
+      ]).start(() => animate());
+    };
 
-    emojis.forEach((emoji) => startAnimation(emoji));
+    animate();
+  };
 
-    startTypingAnimation();
-
-    const cursorInterval = setInterval(() => {
-      setShowCursor((prev) => !prev);
-    }, 500);
-
-    return () => clearInterval(cursorInterval);
-  }, []);
+  const startEntryAnimations = () => {
+    Animated.sequence([
+      Animated.timing(titleMoveAnim, {
+        toValue: 0,
+        duration: 1000,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1.7)),
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonsFadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
   const startTypingAnimation = () => {
-    setSubtitleText('');
     let index = 0;
-    let currentText = '';
+    const typeSpeed = 50;
 
-    const typeSubtitle = () => {
-      if (index < fullSubtitle.length) {
-        currentText += fullSubtitle[index];
-        setSubtitleText(currentText);
+    const typeNextChar = () => {
+      if (index <= fullSubtitle.length) {
+        setSubtitleText(fullSubtitle.slice(0, index));
         index++;
-        setTimeout(typeSubtitle, 100);
+        setTimeout(typeNextChar, typeSpeed);
       }
     };
 
-    typeSubtitle();
+    setTimeout(typeNextChar, 1500);
   };
 
-  const startAnimation = (emoji: FloatingEmoji) => {
-    const duration = 8000 + Math.random() * 4000;
+  useEffect(() => {
+    // Initialize animations
+    const emojis: FloatingEmoji[] = Array.from({ length: NUMBER_OF_EMOJIS }, () => ({
+      emoji: EMOJIS[Math.floor(Math.random() * EMOJIS.length)],
+      position: new Animated.ValueXY(getRandomPosition()),
+      scale: new Animated.Value(Math.random() * 0.3 + 1.2),
+      rotation: new Animated.Value(0),
+      opacity: new Animated.Value(0.3),
+    }));
 
-    Animated.parallel([
-      Animated.timing(emoji.position, {
-        toValue: {
-          x: Math.random() * width,
-          y: Math.random() * height,
-        },
-        duration,
-        useNativeDriver: false,
-      }),
-      Animated.timing(emoji.rotation, {
-        toValue: 360,
-        duration: duration * 1.5,
-        useNativeDriver: false,
-      }),
-    ]).start(() => {
-      emoji.rotation.setValue(0);
-      startAnimation(emoji);
+    setFloatingEmojis(emojis);
+    
+    // Start floating animations
+    emojis.forEach((emoji, index) => {
+      setTimeout(() => {
+        startFloatingAnimation(emoji);
+      }, index * 100);
     });
+
+    // Start other animations
+    startEntryAnimations();
+    startTypingAnimation();
+
+    // Setup cursor blink
+    cursorIntervalRef.current = setInterval(() => {
+      setShowCursor(prev => !prev);
+    }, 500);
+
+    // Check first time launch
+    const checkFirstLaunch = async () => {
+      try {
+        const hasLaunched = await AsyncStorage.getItem(FIRST_TIME_KEY);
+        if (!hasLaunched) {
+          await AsyncStorage.setItem(FIRST_TIME_KEY, 'true');
+        }
+      } catch (error) {
+        console.warn('Error checking first launch:', error);
+      }
+    };
+    checkFirstLaunch();
+
+    // Cleanup function
+    return () => {
+      if (cursorIntervalRef.current) {
+        clearInterval(cursorIntervalRef.current);
+      }
+      floatingEmojis.forEach(emoji => {
+        emoji.position.stopAnimation();
+        emoji.scale.stopAnimation();
+        emoji.opacity.stopAnimation();
+      });
+    };
+  }, []); // Empty dependency array
+
+  const handleSignup = () => {
+    navigation.navigate('Signup');
   };
 
+  const handleLogin = () => {
+    navigation.navigate('Login');
+  };
+
+  // Rest of the component remains the same...
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" />
       <LinearGradient
         colors={['#1a1733', '#231f45', '#2a2552', '#231f45', '#1a1733']}
         style={styles.gradient}
@@ -117,12 +199,6 @@ export default function HomeScreen() {
                 { translateX: emoji.position.x },
                 { translateY: emoji.position.y },
                 { scale: emoji.scale },
-                {
-                  rotate: emoji.rotation.interpolate({
-                    inputRange: [0, 360],
-                    outputRange: ['0deg', '360deg'],
-                  }),
-                },
               ],
               opacity: emoji.opacity,
             },
@@ -132,31 +208,55 @@ export default function HomeScreen() {
         </Animated.Text>
       ))}
 
-      <View style={styles.content}>
+      <Animated.View 
+        style={[
+          styles.content,
+          {
+            transform: [
+              { translateY: titleMoveAnim },
+            ],
+          }
+        ]}
+      >
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>VanityAI</Text>
-          <Text style={styles.subtitle}>
+          <Animated.Text style={[styles.title, { opacity: fadeAnim }]}>
+            VanityAI
+          </Animated.Text>
+          <Animated.Text style={[styles.subtitle, { opacity: fadeAnim }]}>
             {subtitleText}
-            <Text>{showCursor ? '|' : ' '}</Text>
-          </Text>
+            <Text style={styles.cursor}>{showCursor ? '|' : ' '}</Text>
+          </Animated.Text>
         </View>
 
-        <View style={styles.buttonContainer}>
+        <Animated.View 
+          style={[
+            styles.buttonContainer,
+            {
+              opacity: buttonsFadeAnim,
+              transform: [{ translateY: buttonsFadeAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [20, 0],
+              })}],
+            }
+          ]}
+        >
           <TouchableOpacity 
             style={[styles.button, styles.signupButton]}
-            onPress={() => navigation.navigate('Signup')}
+            onPress={handleSignup}
+            activeOpacity={0.8}
           >
-            <Text style={styles.signupButtonText}>Create Account</Text>
+            <Text style={styles.signupButtonText}>Get Started</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
             style={[styles.button, styles.loginButton]}
-            onPress={() => console.log('Login pressed')}
+            onPress={handleLogin}
+            activeOpacity={0.8}
           >
             <Text style={styles.loginButtonText}>Already have an account? Log in</Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </Animated.View>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -175,37 +275,42 @@ const styles = StyleSheet.create({
   },
   floatingEmoji: {
     position: 'absolute',
-    fontSize: 40,
+    fontSize: 32,
   },
   content: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 20,
-    paddingTop: 100,
+    paddingTop: Platform.OS === 'ios' ? 120 : 100,
     paddingBottom: 50,
   },
   titleContainer: {
     alignItems: 'center',
   },
   title: {
-    fontSize: 48,
+    fontSize: 56,
     fontWeight: 'bold',
     color: '#f49cbb',
     textAlign: 'center',
     marginBottom: 15,
     textShadowColor: 'rgba(244, 156, 187, 0.5)',
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 10,
+    textShadowRadius: 15,
     letterSpacing: 2,
+    includeFontPadding: false,
   },
   subtitle: {
-    fontSize: 20,
+    fontSize: 22,
     color: '#fdf0d5',
     textAlign: 'center',
     marginBottom: 20,
     opacity: 0.9,
     letterSpacing: 1,
+  },
+  cursor: {
+    color: '#fdf0d5',
+    opacity: 0.9,
   },
   buttonContainer: {
     width: '100%',
@@ -213,8 +318,8 @@ const styles = StyleSheet.create({
   },
   button: {
     width: '100%',
-    padding: 18,
-    borderRadius: 16,
+    padding: 20,
+    borderRadius: 20,
     alignItems: 'center',
     marginBottom: 16,
   },
@@ -236,7 +341,7 @@ const styles = StyleSheet.create({
   },
   signupButtonText: {
     color: '#fdf0d5',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     letterSpacing: 1,
   },

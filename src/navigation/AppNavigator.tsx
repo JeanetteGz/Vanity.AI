@@ -1,35 +1,24 @@
-// src/navigation/AppNavigator.tsx
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import { NavigationContainer } from '@react-navigation/native';
-import HomeScreen from '../screens/HomeScreen'; // Verify this path is correct
-import SignupScreen from '../screens/auth/SignupScreen'; // Verify this path is correct
+import HomeScreen from '../screens/HomeScreen';
+import SignupScreen from '../screens/auth/SignupScreen';
+import LoginScreen from '../screens/auth/LoginScreen';
+import SkinQuestionsScreen from '../screens/questionnaire/SkinQuestionsScreen';
 
-type RootStackParamList = {
-  Home: undefined;
-  Signup: undefined;
-};
+const Stack = createStackNavigator();
 
-const Stack = createStackNavigator<RootStackParamList>();
-
-function AppNavigator() {
+export default function AppNavigator() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home">
-        <Stack.Screen 
-          name="Home" 
-          component={HomeScreen} 
-          options={{ headerShown: false }} // Optional: Hide the header for HomeScreen
-        />
-        <Stack.Screen 
-          name="Signup" 
-          component={SignupScreen} 
-          options={{ title: 'Sign Up' }} // Optional: Customize header title for SignupScreen
-        />
-        {/* Add other screens here as needed */}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: '#0d0c1d' }
+      }}
+    >
+      <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Screen name="Signup" component={SignupScreen} />
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="SkinQuestions" component={SkinQuestionsScreen} />
+    </Stack.Navigator>
   );
 }
-
-export default AppNavigator;
